@@ -47,6 +47,7 @@ import org.kohsuke.github.GHBranch;
 import org.kohsuke.github.GHPermissionType;
 import org.kohsuke.github.GHPullRequest;
 import org.kohsuke.github.GHRepository;
+import org.kohsuke.github.GHTag;
 import org.kohsuke.github.GitHub;
 
 /**
@@ -106,7 +107,9 @@ public class GitHubSCMSourceRequest extends SCMSourceRequest {
      */
     @CheckForNull
     private Iterable<GHBranch> branches;
-    // TODO private Iterable<GHTag> tags;
+
+    private Iterable<GHTag> tags;
+
     /**
      * The repository collaborator names or {@code null} if not provided.
      */
@@ -166,7 +169,7 @@ public class GitHubSCMSourceRequest extends SCMSourceRequest {
                     if (SCMHeadOrigin.DEFAULT.equals(h.getOrigin())) {
                         branchNames.add(((PullRequestSCMHead) h).getOriginName());
                     }
-                } else if (h instanceof TagSCMHead) { // TODO replace with concrete class when tag support added
+                } else if (h instanceof TagSCMHead) {
                     tagNames.add(h.getName());
                 }
             }
@@ -345,7 +348,15 @@ public class GitHubSCMSourceRequest extends SCMSourceRequest {
         return Util.fixNull(branches);
     }
 
-    // TODO Iterable<GHTag> getTags() and setTags(...)
+    public final void setTags(@CheckForNull Iterable<GHTag> tags) {
+        this.tags = tags;
+    }
+
+    @NonNull
+    public final Iterable<GHTag> getTags() {
+        return Util.fixNull(tags);
+    }
+
 
     /**
      * Provides the request with the names of the repository collaborators.

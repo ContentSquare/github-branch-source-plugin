@@ -97,6 +97,7 @@ import jenkins.scm.api.trait.SCMTrait;
 import jenkins.scm.api.trait.SCMTraitDescriptor;
 import jenkins.scm.impl.ChangeRequestSCMHeadCategory;
 import jenkins.scm.impl.UncategorizedSCMHeadCategory;
+import jenkins.scm.impl.TagSCMHeadCategory;
 import jenkins.scm.impl.form.NamedArrayList;
 import jenkins.scm.impl.trait.Discovery;
 import jenkins.scm.impl.trait.Selection;
@@ -115,6 +116,7 @@ import org.kohsuke.github.GHPermissionType;
 import org.kohsuke.github.GHPullRequest;
 import org.kohsuke.github.GHRef;
 import org.kohsuke.github.GHRepository;
+import org.kohsuke.github.GHTag;
 import org.kohsuke.github.GHUser;
 import org.kohsuke.github.GitHub;
 import org.kohsuke.github.HttpException;
@@ -853,7 +855,7 @@ public class GitHubSCMSource extends AbstractGitSCMSource {
                         request.setBranches(new LazyBranches(request, ghRepository));
                     }
                     if (request.isFetchTags()) {
-                        // TODO request.setTags(repo.getTags);
+                        request.setTags(ghRepository.listTags());
                     }
                     request.setCollaboratorNames(new LazyContributorNames(request, listener, github, ghRepository, credentials));
                     request.setPermissionsSource(new GitHubPermissionsSource() {
@@ -970,7 +972,32 @@ public class GitHubSCMSource extends AbstractGitSCMSource {
                         listener.getLogger().format("%n  %d pull requests were processed%n", count);
                     }
                     if (request.isFetchTags() && !request.isComplete()) {
-                        // TODO
+                        listener.getLogger().format("%n  Checking tags...%n");
+                        int count = 0;
+                        for (final GHTag tag : request.getTags()) {
+                            count++;
+                            String tagName = tag.getName();
+                            listener.getLogger().format("%n    Checking tag %s%n", HyperlinkNote
+                                    .encodeTo(repositoryUrl + "/tree/" + tagName, tagName));
+                            TagSCMHead head = new TagSCMHead(tag, tagName);
+                            if (request.process(head, new SCMRevisionImpl(head, tag.getCommit().getSHA1()),
+                                    new SCMSourceRequest.ProbeLambda<TagSCMHead, SCMRevisionImpl>() {
+                                        @NonNull
+                                        @Override
+                                        public SCMSourceCriteria.Probe create(@NonNull TagSCMHead head,
+                                                                              @Nullable SCMRevisionImpl revisionInfo)
+                                                throws IOException, InterruptedException {
+                                            return GitHubSCMSource.this.createProbe(head, revisionInfo);
+                                        }
+                                    }, new CriteriaWitness(listener))) {
+                                listener.getLogger().format("%n  %d branches were processed (query completed)%n", count);
+                                break;
+                            } else {
+                                request.checkApiRateLimit();
+                            }
+
+                        }
+                        listener.getLogger().format("%n  %d tags were processed%n", count);
                     }
                 }
                 listener.getLogger().format("%nFinished examining %s%n%n", fullName);
@@ -1091,7 +1118,11 @@ public class GitHubSCMSource extends AbstractGitSCMSource {
                             break;
                     }
                     return new PullRequestSCMRevision(prhead, baseHash, pr.getHead().getSha());
-                } else {
+                }
+                else if(head instanceof TagSCMHead) {
+                    return new SCMRevisionImpl(head, ghRepository.getRef("tags/" + head.getName()).getObject().getSha());
+                }
+                else {
                     return new SCMRevisionImpl(head, ghRepository.getRef("heads/" + head.getName()).getObject().getSha());
                 }
             } catch (RateLimitExceededException rle) {
@@ -1635,8 +1666,9 @@ public class GitHubSCMSource extends AbstractGitSCMSource {
         protected SCMHeadCategory[] createCategories() {
             return new SCMHeadCategory[]{
                     new UncategorizedSCMHeadCategory(Messages._GitHubSCMSource_UncategorizedCategory()),
-                    new ChangeRequestSCMHeadCategory(Messages._GitHubSCMSource_ChangeRequestCategory())
-                    // TODO add support for tags and maybe feature branch identification
+                    new ChangeRequestSCMHeadCategory(Messages._GitHubSCMSource_ChangeRequestCategory()),
+                    new TagSCMHeadCategory(Messages._GitHubSCMSource_TagCategory())
+                    // TODO add eventual support for feature branch identification
             };
         }
 

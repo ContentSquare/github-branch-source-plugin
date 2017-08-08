@@ -119,7 +119,12 @@ public class GitHubSCMBuilder extends GitSCMBuilder<GitHubSCMBuilder> {
             withRefSpec("+refs/pull/" + h.getId() + "/head:refs/remotes/@{remote}/" + head
                     .getName());
             repoUrl = repositoryUrl(h.getSourceOwner(), h.getSourceRepo());
-        } else {
+        }
+        else if (head instanceof TagSCMHead) {
+            withRefSpec("+refs/tags/" + head.getName() + ":refs/remotes/@{remote}/" + head.getName());
+            repoUrl = repositoryUrl(repoOwner, repository);
+        }
+        else {
             withRefSpec("+refs/heads/" + head.getName() + ":refs/remotes/@{remote}/" + head.getName());
             repoUrl = repositoryUrl(repoOwner, repository);
         }
